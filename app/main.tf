@@ -1,5 +1,14 @@
+terraform {
+  required_version = ">= 1.10.0"
+  required_providers {
+    kubernetes	= {
+      source	= "hashicorp/kubernetes"
+      version	= "2.34.0"
+    }
+  }
+}
+
 resource "kubernetes_config_map" "golang-app-code" {
-  depends_on = [ kubernetes_namespace.monitoring ]
   metadata {
     name = "golang-app-code"
     namespace = var.namespace
@@ -13,7 +22,7 @@ resource "kubernetes_config_map" "golang-app-code" {
        )
        func main() {
           http.Handle("/metrics", promhttp.Handler())
-          http.ListenAndServe(":3232", nil)
+          http.ListenAndServe(":${var.port}", nil)
        }
      EOL
 
@@ -26,7 +35,6 @@ resource "kubernetes_config_map" "golang-app-code" {
 }
 
 resource "kubernetes_deployment" "golang-app-deployment" {
-  depends_on = [ kubernetes_namespace.monitoring, kubernetes_config_map.golang-app-code ]
   metadata {
     name = "golang-app-deployment"
     namespace = var.namespace
@@ -40,14 +48,14 @@ resource "kubernetes_deployment" "golang-app-deployment" {
         labels = { app = "golang-app" }
         annotations = {
           "prometheus.io/scrape" = "true"
-          "prometheus.io/port" = "3232"
+          "prometheus.io/port" = var.port
         }
       }
       spec {
         container {
           name = "golang-app"
           image  = "golang:1.21-bullseye"
-          port { container_port = 3232 }
+          port { container_port = var.port }
           working_dir = "/go/src/app"
           command = ["/bin/bash", "run.sh"]
 
