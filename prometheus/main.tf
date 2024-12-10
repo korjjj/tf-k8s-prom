@@ -1,5 +1,4 @@
 resource "kubernetes_cluster_role" "prometheus-cluster-role" {
-  depends_on = [ kubernetes_namespace.monitoring ] # else it races with gce
   metadata { name = "prometheus-cluster-role" }
   rule {
     api_groups	= [""]
@@ -7,7 +6,7 @@ resource "kubernetes_cluster_role" "prometheus-cluster-role" {
     verbs	= ["get", "list", "watch"]
   }
   rule {
-    api_groups = ["extensions"]
+    api_groups	= ["extensions"]
     resources	= ["ingresses"]
     verbs	= ["get", "list", "watch"]
   }
@@ -18,7 +17,6 @@ resource "kubernetes_cluster_role" "prometheus-cluster-role" {
 }
 
 resource "kubernetes_cluster_role_binding" "prometheus-cluster-role-binding" {
-  depends_on = [ kubernetes_namespace.monitoring ]
   metadata { name = "prometheus-cluster-role-binding" }
   role_ref {
     api_group	= "rbac.authorization.k8s.io"
@@ -28,21 +26,20 @@ resource "kubernetes_cluster_role_binding" "prometheus-cluster-role-binding" {
   subject {
     kind	= "ServiceAccount"
     name	= "default"
-    namespace = var.namespace
+    namespace	= var.namespace
   }
 }
 
 resource "kubernetes_config_map" "prometheus-config-map" {
-  depends_on = [ kubernetes_namespace.monitoring ]
   metadata {
     name	= "prometheus-config-map"
     namespace	= var.namespace
   }
-  data = { "prometheus.yml" = "${file("${path.module}/files/prometheus.yml")}" }
+  data = { "prometheus.yml" = file("${path.module}/prometheus.yml") }
 }
 
 resource "kubernetes_deployment" "prometheus-deployment" {
-  depends_on = [kubernetes_namespace.monitoring,kubernetes_config_map.prometheus-config-map]
+  depends_on = [ kubernetes_config_map.prometheus-config-map ]
   metadata {
     name	= "prometheus-deployment"
     namespace	= var.namespace
@@ -82,13 +79,12 @@ resource "kubernetes_deployment" "prometheus-deployment" {
 }
 
 resource "kubernetes_service" "prometheus-service" {
-  depends_on = [ kubernetes_namespace.monitoring ]
   metadata {
-    name	= "prometheus-service"
+    name	= var.prom_service_name
     namespace	= var.namespace
   }
   spec {
-    selector	= { app = kubernetes_deployment.prometheus-deployment.spec.0.template.0.metadata[0].labels.app }
-    port { port = 9090 }
+    selector	= { app = kubernetes_deployment.prometheus-deployment.spec[0].template[0].metadata[0].labels.app }
+    port { port = var.prom_service_port }
   }
 }

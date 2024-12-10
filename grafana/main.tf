@@ -1,5 +1,4 @@
 resource "kubernetes_config_map" "grafana-datasources" {
-  depends_on = [ kubernetes_namespace.monitoring ]
   metadata {
     name = "grafana-datasources"
     namespace = var.namespace
@@ -13,14 +12,13 @@ resource "kubernetes_config_map" "grafana-datasources" {
         name: prometheus
         orgId: 1
         type: prometheus
-        url: http://${kubernetes_service.prometheus-service.metadata[0].name}.${var.namespace}.svc:${kubernetes_service.prometheus-service.spec[0].port[0].port}
+        url: http://${var.prom_service_name}.${var.namespace}.svc:${var.prom_service_port}
         version: 1
     EOL
   }
 }
 
 resource "kubernetes_config_map" "grafana-dashboards" {
-  depends_on = [ kubernetes_namespace.monitoring ]
   metadata {
     name = "grafana-dashboards"
     namespace = var.namespace
@@ -40,16 +38,14 @@ resource "kubernetes_config_map" "grafana-dashboards" {
 }
 
 resource "kubernetes_config_map" "test-dashboard" {
-  depends_on = [ kubernetes_namespace.monitoring ]
   metadata {
     name = "test-dashboard"
     namespace = var.namespace
   }
-  data = { "test-dashboard.json" = "${file("${path.module}/files/test-dashboard.json")}" }
+  data = { "test-dashboard.json" = file("${path.module}/test-dashboard.json") }
 }
-
 resource "kubernetes_deployment" "grafana-deployment" {
-  depends_on = [ kubernetes_namespace.monitoring, kubernetes_config_map.grafana-datasources ]
+  depends_on = [ kubernetes_config_map.grafana-datasources ]
   metadata {
     name = "grafana-deployment"
     namespace = var.namespace
@@ -104,13 +100,12 @@ resource "kubernetes_deployment" "grafana-deployment" {
 }
 
 resource "kubernetes_service" "grafana-service" {
-  depends_on = [ kubernetes_namespace.monitoring ]
   metadata {
     name = "grafana-service"
     namespace = var.namespace
   }
   spec {
-    selector = { app = kubernetes_deployment.grafana-deployment.spec.0.template.0.metadata[0].labels.app }
+    selector = { app = kubernetes_deployment.grafana-deployment.spec[0].template[0].metadata[0].labels.app }
     port { port = 3000 }
   }
 }
